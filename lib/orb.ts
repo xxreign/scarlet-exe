@@ -1,0 +1,13 @@
+// Transparent premultiplied volume: twisted ridges through a noisy spherical density field.
+export function energySphere(canvas:HTMLCanvasElement){
+ const gl=canvas.getContext('webgl',{alpha:true,antialias:false,preserveDrawingBuffer:true,premultipliedAlpha:true});if(!gl)return null;
+ const vs='attribute vec2 p; varying vec2 uv; void main(){uv=p;gl_Position=vec4(p,0.,1.);}';
+ const fs=`precision highp float;varying vec2 uv;uniform float time,chaos;
+ float hash(vec3 p){p=fract(p*.3183099+vec3(.1,.2,.3));p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+ float noise(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+1.),f.x),f.y),f.z);}
+ mat2 rot(float a){return mat2(cos(a),sin(a),-sin(a),cos(a));}
+ void main(){vec2 q=uv*1.53;float r=length(q);float t=time*.21;vec3 col=vec3(.14,.002,.012)*exp(-r*r*2.6);float hot=0.;if(r<1.46){for(int i=0;i<25;i++){float z=-1.12+float(i)*.093;vec3 p=vec3(q,z);p.xy*=rot(.32);p.xz*=rot(t);float a=noise(p*2.2+vec3(0,t*.6,0));p.yz*=rot(2.*a+.55*p.x+t*.2);float n=a*.45+noise(p*4.1+2.*a)*.34+noise(p*10.+a)*.15+noise(p*24.)*.06;float d=length(p)-.78-(n-.5)*(.92+chaos*.4);float shell=exp(-abs(d)*11.);float fold=abs(sin(19.*n+4.5*p.y+1.8*p.x));float thread=exp(-fold*14.);hot+=shell*(.014+.29*thread);col+=shell*(vec3(.105,.0015,.008)*(.5+n)+vec3(.84,.047,.035)*thread);}}
+ col+=vec3(1.,.37,.22)*pow(hot,2.2)*.68;col=1.-exp(-col*1.28);float alpha=max(col.r,max(col.g,col.b));gl_FragColor=vec4(col,alpha);}`;
+ const prog=gl.createProgram()!;const shaders=[vs,fs].map((src,i)=>{let s=gl.createShader(i?gl.FRAGMENT_SHADER:gl.VERTEX_SHADER)!;gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s)||'Shader error');gl.attachShader(prog,s);return s});gl.linkProgram(prog);gl.useProgram(prog);let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);let p=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(p);gl.vertexAttribPointer(p,2,gl.FLOAT,false,0,0);let T=gl.getUniformLocation(prog,'time'),C=gl.getUniformLocation(prog,'chaos');
+ return {draw(t:number,c:number){gl.viewport(0,0,canvas.width,canvas.height);gl.uniform1f(T,t);gl.uniform1f(C,c);gl.drawArrays(gl.TRIANGLES,0,3)},close(){gl.deleteBuffer(b);gl.deleteProgram(prog);shaders.forEach(s=>gl.deleteShader(s));gl.getExtension('WEBGL_lose_context')?.loseContext()}}
+}
